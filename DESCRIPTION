@@ -1,0 +1,11 @@
+Package: tsatools
+Type: Package
+Title: Time Series Analysis Tools
+Version: 0.1.0
+Author: Nathan Morse
+Maintainer: Nathan Morse <nam@psu.edu>
+Description: Automates unit root testing and procedures for multivariate time series analysis, including model diagnostics and calculations of inferential statistics (e.g., long-run multipliers, impulse response functions, standard errors)
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1

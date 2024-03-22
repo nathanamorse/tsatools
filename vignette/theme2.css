@@ -1,0 +1,75 @@
+/* Structure */
+html, body {scroll-behavior: smooth; height: 100%; width: 100%}
+.main-container {padding: 25px 15px 100px 15px; height: 100%; width: 85%}
+.wide-hr {position: absolute; left: 0; margin: 0; width: 100%;}
+.main-section {min-height: 120%; box-sizing: border-box; padding: 15% 0;}
+.main-section h2 {padding-top: 0; margin-bottom: 20px;}
+.cols2 {display: flex; gap: 30px; margin-bottom: 50px;}
+.cols2 .section.level2 {width: 50%;}
+
+/* Examples */
+.example .btn {display: none;}
+.btn-ex {margin-left: 5px;}
+.bs-callout h4 {float: left;}
+.bs-callout-end {clear: both;}
+.bs-callout .collapse {margin-bottom: 10px;}
+
+/* Header */
+#header {height: 125%; box-sizing: border-box; padding: 15% 0;}
+#header h3 {margin: 20px 0 25px 0;}
+#header h4 {margin-top: .5em;}
+#header .btn-group {display: none;}
+h1.title {letter-spacing: -.3px;}
+div.abstract {width: 100%; margin: 30px 0;}
+p.abstract {display: none;}
+
+/* Text */
+h1 {margin: 0;}
+h2 {font-size: 25px; padding: 0; margin: 0;}
+h3 {font-size: 18px; font-weight: bold; margin-top: 1.5em;}
+h4 {margin-top: 1em;}
+p {font-size: 16px; margin-bottom: 16px;}
+a {color: steelblue;}
+a:hover {color: black; text-decoration: none; border-bottom: 1px solid black;}
+.caption {color: gray; font-size: .9em;}
+ol li p {margin-bottom: 3px;}
+ol {margin-top: -5px; margin-bottom: 16px;}
+
+/* Buttons */
+.button {margin: 30px 0 15px 0;}
+.button a {padding: 10px 15px; border-radius: 5px; background: steelblue; opacity: .8; color: white; font-weight: bold;}
+.button a:hover {text-decoration: none; border-bottom: none; opacity: 1;}
+
+/* Tables */
+table:not(.table-bordered)>tbody>tr>td, .table:not(.table-bordered)>tbody>tr>td, table:not(.table-bordered)>thead>tr>th, .table:not(.table-bordered)>thead>tr>th {border-color: #eee;}
+table {border-collapse: separate; width: 100%; margin: 20px 0;}
+.table>tbody>tr>td, .table>thead>tr>th, table td, table th {padding: 5px 25px 5px 0; vertical-align: top; text-align: left; border-top: 0; border-bottom: 1px solid #eee;}
+.table>tbody>tr:last-of-type>td, table tr:last-of-type td {border-bottom: 0;}
+table td p {margin: 0;}
+table a:not(.btn), .table a:not(.btn) {text-decoration: none;}
+
+/* Callouts */
+.bs-callout {padding: 15px 20px 5px 20px; border-left: 7px solid #eee; margin-bottom: 10px;}
+.bs-callout h4 {margin-top: 0; margin-bottom: 5px; font-size: 17px; font-weight: bold;}
+.bs-callout p {margin-bottom: 0;}
+.bs-callout-blue {background-color: #f0f6fb; border-color: #428bca;}
+.bs-callout-blue h4 {color: #428bca;}
+.bs-callout-green {background-color: #f5fbf5; border-color: #5cb85c;}
+.bs-callout-green h4 {color: #5cb85c;}
+.bs-callout-gray {background-color: #f7f7f7; border-color: #777;}
+.bs-callout-gray h4 {color: #777;}
+
+/* Tabs
+.nav-tabs {margin: -40px 0 10px 0; float: right;}
+.tab-content {clear: both;} */
+
+/* Tabs
+.nav {float: right; margin-top: -42px; margin-bottom: -1px; border-bottom: 1px solid #ddd;}
+.nav-pills>li>a {color: #555; background: #f3f3f3; border-radius: 0; border-top-left-radius: 5px; border-top-right-radius: 5px; border: 1px solid #eee; border-bottom: 1px solid #f3f3f3;}
+.nav-pills>li>a:hover {color: #555; background: #f9f9f9; border: 1px solid #ddd; border-bottom: 1px solid #f9f9f9;}
+.nav-pills>li.active>a {color: #555; background: white; border: 1px solid #ddd; border-bottom: 1px solid white; padding-bottom: 11px; margin-bottom: -1px;}
+.nav-pills>li.active>a:hover, .nav-pills>li.active>a:focus {color: #555; background: white;} */
+
+
+
+

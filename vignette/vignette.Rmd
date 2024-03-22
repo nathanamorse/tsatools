@@ -1,0 +1,707 @@
+---
+title: "Single-Equation Models for Stationary Time Series"
+subtitle: "Using the `tsatools` package"
+author: "Nathan Morse"
+date: "May 2, 2022"
+output: 
+  html_document:
+    theme: lumen
+    toc: false
+    css: "theme2.css"
+    code_folding: hide
+    mathjax: "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS_CHTML.js"
+abstract: <p>This vignette guides users through the steps of determining properties of time series, modeling their relationships with autoregressive distributive lag (ADL) models and generalized error correction models (GECMs), and interpreting the results. It relies on functions from the `dynlm` package and introduces functions from the `tsatools` package.</p> <div class="button"><a href="#step1">Get started</a></div>
+---
+
+```{r setup, include=FALSE}
+
+# Global options
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE,
+                      fig.width=8.64583)
+options(knitr.kable.NA = '')
+
+# Packages
+library(tsatools)
+library(tidyverse)
+library(dynlm)
+library(purrr)
+library(lmtest)
+library(urca)
+library(knitr)
+library(kableExtra)
+library(stargazer)
+library(msm)
+library(sandwich)
+
+# Load and prepare data
+load("TSRegressionApproval.rdata")
+df = select(AppEcon, date, app=Approving, lei=lei_pc, cei=cei_pc, 
+            dipc=DSPIC96_pc_pca, infl=inflation, unemp=UNRATE,
+            crisis:hostages)
+
+# Keep track of variable names
+variables = c(`Presidential approval`="app", 
+              `LEI (growth)`="lei",
+              `CEI (growth)`="cei",
+              `Income per capita (growth)`="dipc",
+              `Inflation rate`="infl",
+              `Unemployment rate`="unemp")
+
+# Plot the series
+df %>% select(date:unemp) %>%
+  pivot_longer(app:unemp) %>%
+  mutate(name = factor(name, levels=variables, labels=names(variables))) %>%
+  ggplot(aes(x=date, y=value, color=name)) +
+  geom_line() +
+  facet_wrap(~name, scales="free") +
+  labs(x="Month", y="Value") +
+  morse::theme_morse() +
+  theme(legend.position="none")
+
+```
+
+# {.top-section}
+
+<hr class="wide-hr">
+
+# {.main-section #step1}
+
+## 1. Exploratory analysis
+
+Visualize the data with line plots, ACF plots, and PACF plots to get a sense of the dynamics of each series. For each series, you will need to test whether it is stationary or has unit roots. A time series process is considered *stationary* if it has a constant mean, a constant variance, and constant covariance. First decide what to set $D_t$ to based on the overall pattern.
+
+| Scenario | Deterministics | Function |
+|---------------|---------------|------------------------------|
+| Constant mean of 0 | $D_t=0$ | `ur_tests(type="none")` in [Step 2](#step2) |
+| Constant nonzero mean | $D_t=c$ | `ur_tests(type="constant")` in [Step 2](#step2) |
+| Trending mean | $D_t = c + \delta t$ | `ur_tests(type="trend")` in [Step 2](#step2) |
+| Unsure of pattern | Try $D_t = c + \delta t$ then $D_t=c$ | `phi_tests` in [Step 2](#step2) |
+| Structural break at known time | Add intervention to $D_t$ | It's complicated |
+| Structural break at unknown time | See rows 1-3 | `urca::ur.za` |
+
+<div class="button"><a href="#step2">Next step</a></div>
+
+#
+
+<hr class="wide-hr">
+
+# {.main-section #step2}
+
+## 2. Test for unit roots
+
+Use the `ur_tests` function in `tsatools` to test for unit roots. This function automatically selects $p_{max}$ (although you can manually input one too), conducts four types of tests with various lags (ADF, PP, DF-GLS, and KPSS), and shows you the top results. This function calls `adf_tests` in `tsatools` (adapted from Linn's `PGTSadfv2.r`), which you can also use to view all ADF tests with lags from 0 to $p_{max}$. 
+
+If unsure about $D_t$, use the `phi_tests` function in `tsatools` to try different deterministics and test for unit roots. The function calls `adf_tests(type="trend")` and tests with $\tau_\tau$, $\phi_3$, and $\phi_2$, and if needed it then calls `adf_tests(type="constant")`and conducts tests with $\tau_\mu$ and $\phi_1$.
+
+#### ur_tests (y, type, ...) {.bs-callout .bs-callout-green}
+
+<div class="btns-ex" style="float:right;">
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s2-ex-ur" aria-expanded="false" aria-controls="s2-ex-ur"><span>Example</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s2-code-ur" aria-expanded="false" aria-controls="s2-code-ur"><span>Code</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s2-det-ur" aria-expanded="false" aria-controls="s2-det-ur"><span>Details</span></button>
+
+</div>
+
+<div class="bs-callout-end"></div>
+
+<div class="collapse" id="s2-det-ur">
+
+`y` = a vector or time series object
+
+`type` = the model deterministics, either "none", "constant", or "trend"
+
+</div>
+
+<div class="collapse example" id="s2-ex-ur">
+```{r, class.source='fold-show', results='asis'}
+ur_tests(df$app, type="constant", format="html")
+```
+</div>
+
+<div class="collapse example" id="s2-code-ur">
+```{r code = readLines("../R/ur_tests.R"), class.source='fold-show'}
+```
+</div>
+
+#### phi_tests (y, lag.strategy, ...) {.bs-callout .bs-callout-green}
+
+<div class="btns-ex" style="float:right;">
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s2-ex-phi" aria-expanded="false" aria-controls="s2-ex-phi"><span>Example</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s2-code-phi" aria-expanded="false" aria-controls="s2-code-phi"><span>Code</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s2-det-phi" aria-expanded="false" aria-controls="s2-det-phi"><span>Details</span></button>
+
+</div>
+
+<div class="bs-callout-end"></div>
+
+<div class="collapse" id="s2-det-phi">
+
+`y` = a vector or time series object
+
+`lag.strategy` = the strategy for choosing lags; either "p" (for smallest lags with white noise residuals), "aic", "bic", or "diffs" (first significant differences)
+
+</div>
+
+<div class="collapse example" id="s2-ex-phi">
+```{r, results='asis', class.source='fold-show'}
+phi_tests(df$unemp, lag.strategy="p", format="html")
+```
+</div>
+
+<div class="collapse example" id="s2-code-phi">
+```{r code = readLines("../R/phi_tests.R"), class.source='fold-show'}
+```
+</div>
+
+####
+
+<div class="button"><a href="#step3">Next step</a></div>
+
+#
+
+<hr class="wide-hr">
+
+# {.main-section #step3}
+
+## 3. Determine the appropriate modeling strategy
+
+The methods from here on require all series to be stationary, and they assume *weak exogeneity*. For weak exogeneity to hold, the parameters of interest must only be a function of parameters in the conditional model, without any cross-equation restrictions. The dependent variable must only be a function of lagged values, not contemporaneous values, of the independent variables of interest.
+
+```{r results='asis', echo=FALSE}
+
+kable(tibble(
+  `Dependent variable` = c("Stationary", "Stationary", "Unit root", "Unit root", "(Anything)"),
+  `Independent variables` = c("All stationary", "At least one has unit roots",
+                              "All stationary", "At least one has unit roots", "(Anything)"),
+  `Weak exogeneity` = c("Plausible", "Plausible", "Plausible", "Plausible", "Not plausible"),
+  `Model strategy` = c(paste("<b>ADL</b> (better for paring down model)",
+                             "in <a href='#step4'>Step 4</a> or<br>",
+                             "<b>GECM</b> (better for estimating error correction)",
+                             "in <a href='#step4'>Step 4</a>"),
+                       "<b>Difference</b> the unit root series, then go back to row 1",
+                       "<b>Reconsider theory</b> -- long-run relationships not likely",
+                       "<b>Not covered here</b> -- need cointegration methods",
+                       "<b>Not covered here</b> -- need multi-equation models")
+), escape=FALSE)
+
+```
+
+<div class="button"><a href="#step4">Next step</a></div>
+
+#
+
+<hr class="wide-hr">
+
+# {.main-section #step4}
+
+## 4. Fit a general model
+
+Use `dynlm` in the `dynlm` package to estimate a general model with as many lags $p$ of the dependent variable and as many lags $q$ of the independent variables as could plausibly be needed to capture the dynamics. You can use `rename_coefs` to make the coefficient names more readable.
+
+| Model | Description |
+|---------------|--------------------------------------------------|
+| **ADL(p,q;n)** <br> $p=$ lags of $y$ <br> $q=$ lags of each $x_j$ <br> $n=$ number of $x$ variables | Autoregressive distributive lag (ADL) models regress the dependent variable at time $t$, $y_t$, as a function of $p$ past values of itself $y_{t-i}$, contemporaneous (current) values of the $n$ independent variables $x_{jt}$, and $q$ past values of the independent variables $x_{j,t-i}$. <br>  $\begin{aligned}
+y_t  &= \alpha_0 + \sum_{i=1}^p \alpha_i y_{t-i} + \sum_{j=1}^n \sum_{i=0}^q \beta_{ji} x_{j,t-i} + \varepsilon_t \\
+\end{aligned}$ |
+| **GECM(p,q;n)** <br> $p-1=$ lags of $y$ <br> $q-1=$ lags of each $x_j$ <br> $n=$ number of $x$ variables | Generalized error correction models (GECMs) are mathematically equivalent to ADL models. They regress the *change* in the dependent variable at each time from the previous time, $\Delta y_t$, as a function of its last value $y_{t-1}$, the past $p-1$ changes in its values $\Delta y_{t-i}$, the last values of the $n$ independent variables $x_{j,t-1}$, contemporaneous changes in the independent variables $\Delta x_{jt}$, and $q-1$ past changes in the independent variables $\Delta x_{j,t-i}$. <br> $\begin{aligned}
+\Delta y_t  &= \alpha_0 + \alpha_1^* y_{t-1} + \sum_{i=1}^{p-1} \alpha_{i+1}^* \Delta y_{t-i} + \sum_{j=1}^n \beta_{j0}^* \Delta x_{jt} + \sum_{j=1}^n \sum_{i=1}^{q-1} \gamma_{ji}^* \Delta x_{j,t-i} + \sum_{j=1}^n \beta_{j1}^* x_{j,t-1} + \varepsilon_t \\
+\end{aligned}$ |
+
+#### rename_coefs (mod, ...) {.bs-callout .bs-callout-green}
+
+<div class="btns-ex" style="float:right;">
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s5-ex-re" aria-expanded="false" aria-controls="s5-ex-re"><span>Example</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s5-code-re" aria-expanded="false" aria-controls="s5-code-re"><span>Code</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s5-det-re" aria-expanded="false" aria-controls="s5-det-re"><span>Details</span></button>
+
+</div>
+
+<div class="bs-callout-end"></div>
+
+<div class="collapse" id="s5-det-re">
+
+`mod` = a `lm` object from `dynlm`
+
+`key` = a named character vector for renaming coefficients
+
+`latex` = logical: whether to include latex notation
+
+</div>
+
+<div class="collapse example" id="s5-ex-re">
+```{r results='asis'}
+
+# Time series object
+df.ts = ts(df, start=c(1978,1), freq=12)
+
+# ADL(p=2, q=2; n=5)
+adl1 = dynlm(app ~ L(app,1:2) + lei + L(lei,1:2) + cei + L(cei,1:2) + 
+               dipc + L(dipc,1:2) + infl + L(infl,1:2) + unemp + L(unemp,1:2) + 
+               Reagan + BushI + Clinton + BushII + Obama + Trump + Honey + Inaug +  
+               RAss + IraqKuwait + Desert + Lehman + Sept11 + Mueller  + Impeach1 + 
+               Impeach2 + CovidP + CovidS, df.ts)
+
+# GECM(p=2, q=2; n=5)
+gecm1 = dynlm(d(app) ~ L(app) + L(d(app)) + L(d(lei),0:1) + L(lei) + 
+                L(d(cei),0:1) + L(cei) + L(d(dipc),0:1) + L(dipc) + 
+                L(d(infl),0:1) + L(infl) + L(d(unemp),0:1) + L(unemp) + 
+                Reagan + BushI + Clinton + BushII + Obama + Trump + Honey + Inaug +  
+                RAss + IraqKuwait + Desert + Lehman + Sept11 + Mueller  + Impeach1 + 
+                Impeach2 + CovidP + CovidS, df.ts)
+
+# Key with variable names
+covars = c(app="Presidential Approval",
+           lei="Leading Economic Index",
+           cei="Coincident Economic Index",
+           dipc="Disposable Income per capita",
+           infl="Inflation rate",
+           unemp="Unemployment rate")
+
+# Rename coefficients
+adl1b = rename_coefs(adl1)
+adl1c = rename_coefs(adl1, key=covars, latex=TRUE)
+gecm1b = rename_coefs(gecm1)
+gecm1c = rename_coefs(gecm1, key=covars, latex=TRUE)
+
+# Display different coefficients
+kable(tibble(
+  `Original coefficient names` = names(coef(gecm1)),
+  `rename_coefs(mod)` = names(coef(gecm1b)),
+  `rename_coefs(mod, key=covars, latex=TRUE)` = names(coef(gecm1c)),
+))
+
+```
+</div>
+
+<div class="collapse example" id="s5-code-re">
+```{r code = readLines("../R/rename_coefs.R"), class.source='fold-show'}
+```
+</div>
+
+####
+
+<div class="button"><a href="#step5">Next step</a></div>
+
+#
+
+<hr class="wide-hr">
+
+# {.main-section #step5}
+
+## 5. Perform diagnostics
+
+Check that the models satisfy the following assumptions:
+
+1.  Linear and constant parameters
+
+2.  Dynamic stability
+
+3.  Zero conditional mean
+
+4.  No serial correlation
+
+5.  No heteroscedasticity
+
+The `mod_checks` function conducts tests relating to all of these assumptions except #3. For #4, it tests for serial correlation using `lmtest::bgtest` with orders 6, 12, 18, and 24 by default and reports whether serial correlation is detected at any of these orders. You can also use `bg_tests` to to see more information on the serial correlation tests at each of these orders.
+
+#### mod_checks (mod, y, data, orders) {.bs-callout .bs-callout-green}
+
+<div class="btns-ex" style="float:right;">
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s6-ex-mod" aria-expanded="false" aria-controls="s6-ex-mod"><span>Example</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s6-code-mod" aria-expanded="false" aria-controls="s6-code-mod"><span>Code</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s6-det-mod" aria-expanded="false" aria-controls="s6-det-mod"><span>Details</span></button>
+
+</div>
+
+<div class="bs-callout-end"></div>
+
+<div class="collapse" id="s6-det-mod">
+
+`mod` = a `dynlm` object
+
+`y` = the name of the dependent variable
+
+`data` = the data frame or matrix used in the model
+
+`orders` = an integer vector of maximal orders of serial correlation to be tested
+
+</div>
+
+<div class="collapse example" id="s6-ex-mod">
+```{r class.source='fold-show', results='asis'}
+mod_checks(list(ADL=adl1, GECM=gecm1), y="app", data=df.ts) %>% kable()
+```
+</div>
+
+<div class="collapse example" id="s6-code-mod">
+```{r code = readLines("../R/mod_checks.R"), class.source='fold-show'}
+```
+</div>
+
+#### bg_tests (mod, orders, ...) {.bs-callout .bs-callout-green}
+
+<div class="btns-ex" style="float:right;">
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s6-ex-bg" aria-expanded="false" aria-controls="s6-ex-bg"><span>Example</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s6-code-bg" aria-expanded="false" aria-controls="s6-code-bg"><span>Code</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s6-det-bg" aria-expanded="false" aria-controls="s6-det-bg"><span>Details</span></button>
+
+</div>
+
+<div class="bs-callout-end"></div>
+
+<div class="collapse" id="s6-det-bg">
+
+`mod` = a `dynlm` object
+
+`orders` = an integer vector of maximal orders of serial correlation to be tested
+
+</div>
+
+<div class="collapse example" id="s6-ex-bg">
+```{r class.source='fold-show', results='asis'}
+bg_tests(adl1, orders=c(6,12,18,24), format="html")
+```
+</div>
+
+<div class="collapse example" id="s6-code-bg">
+```{r code = readLines("../R/bg_tests.R"), class.source='fold-show'}
+```
+</div>
+
+####
+
+<div class="button"><a href="#step6">Next step</a></div>
+
+#
+
+<hr class="wide-hr">
+
+# {.main-section #step6}
+
+## 6. Adjust model
+
+If any assumptions are violated, update the model accordingly. If possible, simplify the model by removing unnecessary lags to make it more efficient. Then, return to [Step 5](#step5) to assess whether the adjusted model now satisfies the assumptions.
+
+```{r results='asis', echo=FALSE}
+
+kable(rbind(
+  c(`Problem`="Too many variables", `Some solutions`="Remove unnecessary lags"),
+  c("Ramsey's RESET test fails", "Consider adding more lags or variables"),
+  c("Empirical fluctuation", "Consider adding more variables or interventions"),
+  c("Zero conditional mean fails", "Use multiple-equation models"),
+  c("Serial correlation", "Reevaluate model specficiations (lags, variables, breaks, trends,  etc.)"),
+  c("Heteroscedasticity", "Reevaluate model specifications or apply heteroscedastic and autocorrelation consistent standard errors (HAC)")
+))
+
+```
+
+```{r include=FALSE}
+
+# ADL(p=1, q=1; n=5)
+adl2 = dynlm(app ~ L(app) + lei + L(lei) + cei + L(cei) + dipc + L(dipc) + 
+               infl + L(infl) + unemp + L(unemp) + 
+               Reagan + BushI + Clinton + BushII + Obama + Trump + Honey + Inaug +  
+               RAss + IraqKuwait + Desert + Lehman + Sept11 + Mueller  + Impeach1 + 
+               Impeach2 + CovidP + CovidS, df.ts)
+
+# GECM(p=1, q=1; n=5)
+gecm2 = dynlm(d(app) ~ L(app) + d(lei) + L(lei) + 
+                d(cei) + L(cei) + d(dipc) + L(dipc) + 
+                d(infl) + L(infl) + d(unemp) + L(unemp) +
+               Reagan + BushI + Clinton + BushII + Obama + Trump + Honey + Inaug +  
+               RAss + IraqKuwait + Desert + Lehman + Sept11 + Mueller  + Impeach1 + 
+               Impeach2 + CovidP + CovidS, df.ts)
+
+# Rename coefficients
+adl2b = rename_coefs(adl2)
+gecm2b = rename_coefs(gecm2)
+adl2c = rename_coefs(adl2, key=covars, latex=TRUE)
+gecm2c = rename_coefs(gecm2, key=covars, latex=TRUE)
+
+# Display (stargazer isn't working very well in this file)
+list(`ADL(2,2)`=adl1c, `ADL(1,1)`=adl2c, `GECM(2,2)`=gecm1c, `GECM(1,1)`=gecm2c) %>%
+  map(~summary(.x)$coef %>% 
+        as.data.frame.matrix() %>%
+        mutate(Estimate = sprintf("%.2f", round(Estimate,2)) %>%
+                 paste0(psig(`Pr(>|t|)`)),
+               SE = paste0("(", sprintf("%.2f", round(`Std. Error`,2)), ")")) %>%
+        select(Estimate, SE) %>% rownames_to_column("Variable")) %>%
+  reduce(merge, by="Variable", all=TRUE, sort=TRUE) %>%
+  select(1, ADL1.b=2, ADL1.se=3, ADL2.b=4, ADL2.se=5, GECM1.b=6, GECM1.se=7,
+         GECM2.b=8, GECM2.se=9) %>%
+  mutate(cat = str_extract(Variable, paste(covars, collapse="|")) %>%
+           map_int(~ifelse(is.na(.x), NA, which(.x==covars))) %>%
+           ifelse(is.na(.) & Variable!="(Intercept)", 7, .)) %>%
+  arrange(cat) %>% select(!cat) %>%
+  kable(caption="ADL and GECM models of presidential approval",
+        col.names=c("", "ADL(2,2)", "", "ADL(1,1)", "", 
+                    "GECM(2,2)", "", "GECM(1,1)", ""), align="lcccc")
+
+```
+
+<div class="button"><a href="#step7">Next step</a></div>
+
+#
+
+<hr class="wide-hr">
+
+# {.main-section #step7}
+
+## 7. Interpret model
+
+| Concept | Estimator | ADLs | GECMs |
+|---------|----------|---------|---------|
+| Direct effects of $X_j$ | Impulse multipliers | $\beta_{j0}$ | $\beta_{j0}^*$ |
+| Total effects of $X_j$ | Long-run multipliers (LRMs) | `lrms(type="adl")` in `tsatools` | `lrms(type="gecm")` in `tsatools` |
+| Dynamics of effects | Impulse response functions (IRFs) | `irfs` in `tsatools` | Not yet available with `irfs` |
+| Half-life of effects | Median lag length | Use `irfs` and `lrms` |  Use IRFs and `lrms` |
+| Duration of effects | Mean lag length | Use `irfs` and `lrms` |  Use IRFs and `lrms` |
+| Rate at which $Y$ returns to equilibrium | Error correction rate | $\sum \alpha_i - 1$ | $\sum \alpha_i^*$ |
+| Equilibrium of $Y$ | Long-run equilibrium | $\hat{Y}$ given $\bar{X}$'s | $\hat{Y}$ given $\bar{X}$'s |
+
+##
+
+#### irfs (mod, x, y, data, h, cum) {.bs-callout .bs-callout-green}
+
+<div class="btns-ex" style="float:right;">
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s8-ex-irf" aria-expanded="false" aria-controls="s8-ex-irf"><span>Example</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s8-code-irf" aria-expanded="false" aria-controls="s8-code-irf"><span>Code</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s8-det-irf" aria-expanded="false" aria-controls="s8-det-irf"><span>Details</span></button>
+
+</div>
+
+<div class="bs-callout-end"></div>
+
+<div class="collapse" id="s8-det-irf">
+
+`mod` = a dynlm object
+
+`x` = a vector of names of the independent variables to be included
+
+`y` = the name of the dependent variable
+
+`data` = the data frame or matrix used for the model, for calculating standard deviations
+
+`h` = the number of lags to calculate IRFs out to
+
+`cum` = whether to calculate cumulative IRFs
+
+</div>
+
+<div class="collapse example" id="s8-ex-irf">
+```{r class.source='fold-show', fig.height=2.5}
+irfs(adl2, x=variables[-1], y="app", data=df.ts, h=12) %>%
+  pivot_longer(!t) %>%
+  mutate(name = factor(name, levels=variables[-1], labels=names(variables)[-1])) %>%
+  ggplot(aes(x=t, y=value, color=name)) +
+  geom_hline(yintercept=0, color="darkgray") +
+  geom_line() +
+  facet_wrap(~name, nrow=1) +
+  labs(x="Months after a shock", y="Response in Approval") +
+  scale_x_continuous(breaks=seq(0,12,3), minor_breaks=seq(1,12,1)) +
+  morse::theme_morse() +
+  theme(legend.position="none")
+```
+</div>
+
+<div class="collapse example" id="s8-code-irf">
+```{r code = readLines("../R/irfs.R"), class.source='fold-show'}
+```
+</div>
+
+#### lrms (mod, x, y, type, ...) {.bs-callout .bs-callout-green}
+
+<div class="btns-ex" style="float:right;">
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s8-ex-lrm" aria-expanded="false" aria-controls="s8-ex-lrm"><span>Example</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s8-code-lrm" aria-expanded="false" aria-controls="s8-code-lrm"><span>Code</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#s8-det-lrm" aria-expanded="false" aria-controls="s8-det-lrm"><span>Details</span></button>
+
+</div>
+
+<div class="bs-callout-end"></div>
+
+<div class="collapse" id="s8-det-lrm">
+
+`mod` = a dynlm object
+
+`x` = a vector of names of the independent variables to be included
+
+`y` = the name of the dependent variable
+
+`type` = type the type of model; either "adl" or "gecm"
+
+</div>
+
+<div class="collapse example" id="s8-ex-lrm">
+```{r class.source='fold-show', results='asis'}
+lrms(adl2, x=variables[-1], y="app", type="adl", vcov="HC1", format="html")
+```
+</div>
+
+<div class="collapse example" id="s8-code-lrm">
+```{r code = readLines("../R/lrms.R"), class.source='fold-show'}
+```
+</div>
+
+#
+
+<hr class="wide-hr">
+
+# {.main-section #other}
+
+## Other functions 
+
+Here are some other functions in `tsatools` that have not already been discussed.
+
+#### psig (p, ...) {.bs-callout .bs-callout-green}
+
+<div class="btns-ex" style="float:right;">
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#ex-psig" aria-expanded="false" aria-controls="ex-psig"><span>Example</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#code-psig" aria-expanded="false" aria-controls="code-psig"><span>Code</span></button>
+
+</div>
+
+<div class="bs-callout-end"></div>
+
+<div class="collapse in">
+
+`p` = a numeric vector of probabilities
+
+</div>
+
+<div class="collapse example" id="code-psig">
+```{r code = readLines("../R/psig.R"), class.source='fold-show'}
+```
+</div>
+
+<div class="collapse example" id="ex-psig">
+```{r class.source='fold-show'}
+psig(c(.03, .0015, .6, .0002, .09))
+```
+</div>
+
+#### phi_cv (phi, n, ...) {.bs-callout .bs-callout-green}
+
+<div class="btns-ex" style="float:right;">
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#ex-cv" aria-expanded="false" aria-controls="ex-cv"><span>Example</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#code-cv" aria-expanded="false" aria-controls="code-cv"><span>Code</span></button>
+
+</div>
+
+<div class="bs-callout-end"></div>
+
+<div class="collapse in">
+
+`phi` = which $\phi$ is being tested; must be 1, 2, or 3
+
+`n` = sample size (number of time points)
+
+</div>
+
+<div class="collapse example" id="code-cv">
+```{r code = readLines("../R/phi_cv.R"), class.source='fold-show'}
+```
+</div>
+
+<div class="collapse example" id="ex-cv">
+```{r class.source='fold-show'}
+phi_cv(phi=2, n=150, alpha=.05)
+```
+</div>
+
+#### phi_sig (tstat, phi, n) {.bs-callout .bs-callout-green}
+
+<div class="btns-ex" style="float:right;">
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#ex-phi" aria-expanded="false" aria-controls="ex-phi"><span>Example</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#code-phi" aria-expanded="false" aria-controls="code-phi"><span>Code</span></button>
+
+</div>
+
+<div class="bs-callout-end"></div>
+
+<div class="collapse in">
+
+`tstat` = the test statistic for the phi test
+
+`phi` = which $\phi$ is being tested; must be 1, 2, or 3
+
+`n` = sample size (number of time points)
+
+</div>
+
+<div class="collapse example" id="code-phi">
+```{r code = readLines("../R/phi_sig.R"), class.source='fold-show'}
+```
+</div>
+
+<div class="collapse example" id="ex-phi">
+```{r class.source='fold-show'}
+phi_sig(tstat=3.654, phi=2, n=150)
+```
+</div>
+
+#### vecm_se (cajo, rls) {.bs-callout .bs-callout-green}
+
+<div class="btns-ex" style="float:right;">
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#ex-vecm" aria-expanded="false" aria-controls="ex-vecm"><span>Example</span></button>
+
+<button type="button" class="btn btn-ex btn-default btn-xs btn-secondary btn-sm code-folding-btn pull-right float-right collapsed" data-toggle="collapse" data-target="#code-vecm" aria-expanded="false" aria-controls="code-vecm"><span>Code</span></button>
+
+</div>
+
+<div class="bs-callout-end"></div>
+
+<div class="collapse in">
+
+`cajo` = a ca.jo object
+
+`rls` = a cajorls object
+
+</div>
+
+<div class="collapse example" id="code-vecm">
+```{r code = readLines("../R/vecm_se.R")}
+```
+</div>
+
+<div class="collapse example" id="ex-vecm">
+```{r class.source='fold-show'}
+df2 = df %>% select(app:unemp) %>% ts()
+johansen = urca::ca.jo(df2, type="trace", ecdet="const", spec="transitory")
+vecm = cajorls(johansen, r=1)
+vecm_se(johansen, vecm)
+```
+</div>
+
+
+
+
+
