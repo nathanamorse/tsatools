@@ -43,7 +43,7 @@ irfs = function(mod, x, y, data, h=10, cum=TRUE) {
 
   # Apply to all independent variables supplied
   names(x) = x
-  cbind(t=0:h, map_dfc(x, irf.x))
+  cbind(t=0:h, purrr::map_dfc(x, irf.x))
 
 }
 

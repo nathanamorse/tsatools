@@ -54,35 +54,35 @@ adf_tests <- function(x, pmax=NULL, lmtestorder=NULL, type = c("none", "constant
     my_lms <- lapply(testlags:2, function(x) lm(adf.data[,1] ~ z.lag.1 + 1 + t + adf.data[,2:x]))
 
   # Pull out the summary for each regression
-  lm_sums  <- map(my_lms, summary)
+  lm_sums  <- purrr::map(my_lms, summary)
 
   # Pull out the t value for the DF test, which is the t-value on z.lag.1 from each regression
-  tau.tval <- map(lm_sums, function(item) item$coefficients["z.lag.1","t value"])
+  tau.tval <- purrr::map(lm_sums, function(item) item$coefficients["z.lag.1","t value"])
 
   # Round t-value to 3 decimal points.
-  tau.tval <- map(tau.tval, round, digits = 3)
+  tau.tval <- purrr::map(tau.tval, round, digits = 3)
 
   # Get the p-value associated with each t-value, assuming a constant in the test regression
-  tau.pval <- map(tau.tval, punitroot, N = TestObs, trend = "c", statistic = "t", na.rm = FALSE)
+  tau.pval <- purrr::map(tau.tval, punitroot, N = TestObs, trend = "c", statistic = "t", na.rm = FALSE)
 
   # Round the p-value to 3 decimals.
-  tau.pval <- map(tau.pval, round, digits = 3)
+  tau.pval <- purrr::map(tau.pval, round, digits = 3)
 
   # Pull out AIC from each regression
-  AICresult <- map(my_lms, AIC)
+  AICresult <- purrr::map(my_lms, AIC)
 
   # Get number of lags in each test regression and make a list for use later
-  plags <- as.list(seq(pmax, 1, -1))
+  plags <- as.list(seq(purrr::pmax, 1, -1))
 
   # Pull out BIC from each regression
-  BICresult <- map(my_lms, BIC)
+  BICresult <- purrr::map(my_lms, BIC)
 
   # Breusch Godfrey test p-values for residual serial correlation
-  lmresult <- map(my_lms, bgtest, order=lmtestorder, type="Chisq", fill = NA)
-  lmstat <- map(lmresult, "statistic")
-  lmstat <- map(lmstat, round, digits=3)
-  lmpvalue <- map(lmresult, "p.value")
-  lmpvalue <- map(lmpvalue, round, digits=3)
+  lmresult <- purrr::map(my_lms, bgtest, order=lmtestorder, type="Chisq", fill = NA)
+  lmstat <- purrr::map(lmresult, "statistic")
+  lmstat <- purrr::map(lmstat, round, digits=3)
+  lmpvalue <- purrr::map(lmresult, "p.value")
+  lmpvalue <- purrr::map(lmpvalue, round, digits=3)
 
 
   # NO CONSTANT OR TREND --------------------------------------------------
@@ -90,11 +90,11 @@ adf_tests <- function(x, pmax=NULL, lmtestorder=NULL, type = c("none", "constant
 
     # Get t statistic on highest lag of Delta z
     highestlag <- as.list(seq(pmax,1)+1)
-    diff.t <- pmap(list(lm_sums, highestlag), function(item, item2) item$coefficients[item2,"t value"])
+    diff.t <- purrr::pmap(list(lm_sums, highestlag), function(item, item2) item$coefficients[item2,"t value"])
 
     # Prepare information
     mylist <- list(tau.tval, tau.pval, AICresult, BICresult, diff.t, lmpvalue)
-    eachel <- map(mylist, unlist)
+    eachel <- purrr::map(mylist, unlist)
     eachel2 <- as.vector(unlist(eachel))
 
     # Prepare output
@@ -112,13 +112,13 @@ adf_tests <- function(x, pmax=NULL, lmtestorder=NULL, type = c("none", "constant
 
     # Get t statistic on highest lag of Delta z
     highestlag <- as.list(seq(pmax,1)+2)
-    diff.t <- pmap(list(lm_sums, highestlag), function(item, item2) item$coefficients[item2,"t value"])
+    diff.t <- purrr::pmap(list(lm_sums, highestlag), function(item, item2) item$coefficients[item2,"t value"])
 
     # Prepare information
     phi.reg <- lapply(testlags:2, function(x) lm(adf.data[,1] ~ -1+ adf.data[,2:x]))
-    Ftestresult <- pmap(list(my_lms, phi.reg), function(item, item2) anova(item, item2)$F[2])
+    Ftestresult <- purrr::pmap(list(my_lms, phi.reg), function(item, item2) anova(item, item2)$F[2])
     mylist <- list(tau.tval, tau.pval, AICresult, BICresult, diff.t, lmpvalue, Ftestresult)
-    eachel <- map(mylist, unlist)
+    eachel <- purrr::map(mylist, unlist)
     eachel2 <- as.vector(unlist(eachel))
 
     # Prepare output
@@ -157,15 +157,15 @@ adf_tests <- function(x, pmax=NULL, lmtestorder=NULL, type = c("none", "constant
 
     # Get t statistic on highest lag of Delta z
     highestlag <- as.list(seq(pmax,1)+3)
-    diff.t <- pmap(list(lm_sums, highestlag), function(item, item2) item$coefficients[item2,"t value"])
+    diff.t <- purrr::pmap(list(lm_sums, highestlag), function(item, item2) item$coefficients[item2,"t value"])
 
     # Prepare information
     phi2.reg <- lapply(testlags:2, function(x) lm(adf.data[,1] ~ -1+ adf.data[,2:x]))
-    Ftestresult2 <- pmap(list(my_lms, phi2.reg), function(item, item2) anova(item, item2)$F[2])
+    Ftestresult2 <- purrr::pmap(list(my_lms, phi2.reg), function(item, item2) anova(item, item2)$F[2])
     phi3.reg <- lapply(testlags:2, function(x) lm(adf.data[,1] ~ adf.data[,2:x]))
-    Ftestresult3 <- pmap(list(my_lms, phi3.reg), function(item, item2) anova(item, item2)$F[2])
+    Ftestresult3 <- purrr::pmap(list(my_lms, phi3.reg), function(item, item2) anova(item, item2)$F[2])
     mylist <- list(tau.tval, tau.pval, AICresult, BICresult, diff.t, lmpvalue, Ftestresult2, Ftestresult3)
-    eachel <- map(mylist, unlist)
+    eachel <- purrr::map(mylist, unlist)
     eachel2 <- as.vector(unlist(eachel))
 
     # Prepare output

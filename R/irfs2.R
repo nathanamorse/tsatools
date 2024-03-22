@@ -81,16 +81,9 @@ irfs = function(mod, x.vars, y.var, type=c("adl", "gecm"), h=10, cum=TRUE, data=
   cbind(
     t = 0:h,
     switch(type,
-           adl = map_dfc(x.vars, ~irf.adl(mod, .x, y.var, h, cum, data)),
-           gecm = map_dfc(x.vars, ~irf.gecm(mod, .x, y.var, h, cum, data)))
+           adl = purrr::map_dfc(x.vars, ~irf.adl(mod, .x, y.var, h, cum, data)),
+           gecm = purrr::map_dfc(x.vars, ~irf.gecm(mod, .x, y.var, h, cum, data)))
   )
 
 }
-
-
-irf1 = irfs(adl2b, x.vars=c("infl", "unemp", "lei"), y.var="app", type="adl", data=df.ts)
-irf2 = irfs(gecm2b, x.vars=c("infl", "unemp", "lei"), y.var="app", type="gecm", data=df.ts)
-plot(ts(irf2$infl))
-
-
 

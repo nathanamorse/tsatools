@@ -18,8 +18,8 @@ bg_tests = function(mod, orders, type="Chisq", format="simple") {
   # Conduct BG tests
   tests = lapply(orders, function(i) bgtest(mod, order=i, type=type))
   out = tibble(Order=orders,
-               `LM test statistic`=unlist(map(tests, "statistic")),
-               `p-value`=unlist(map(tests, "p.value")))
+               `LM test statistic`=unlist(purrr::map(tests, "statistic")),
+               `p-value`=unlist(purrr::map(tests, "p.value")))
   out$Conclusion = ifelse(out$`p-value`<.05, "Serial correlation present",
                           "No serial correlation detected")
 

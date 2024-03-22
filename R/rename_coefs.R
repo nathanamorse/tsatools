@@ -22,8 +22,8 @@ rename_coefs = function(mod, key=NULL, latex=FALSE) {
     # Keep track of which lag is which
     mutate(lags = ifelse(grepl(",", var), str_replace_all(var, ".*\\, +|c\\(|\\).*", ""), NA),
            i = as.numeric(ifelse(grepl(",", var), str_extract(var, "[0-9]+$"), NA)),
-           i0 = as.numeric(map(lags, ~first(unlist(str_split(.x, "\\:"))))),
-           i1 = as.numeric(map(lags, ~last(unlist(str_split(.x, "\\:")))))) %>%
+           i0 = as.numeric(purrr::map(lags, ~first(unlist(str_split(.x, "\\:"))))),
+           i1 = as.numeric(purrr::map(lags, ~last(unlist(str_split(.x, "\\:")))))) %>%
     rowwise() %>%
     mutate(h = ifelse(!is.na(lags), c(i0:i1)[i], NA),
            h = ifelse(lag & is.na(h), 1, h)) %>%

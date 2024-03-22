@@ -19,23 +19,23 @@ mod_checks = function(mods, y, data, orders=c(6,12,18,24)) {
   }
 
   # Diagnostic tests
-  ramsey = map(mods, ~lmtest::resettest(.x, power=2, type="regressor", data=data))
-  efp = map(mods, ~strucchange::sctest(strucchange::efp(.x, type="OLS-CUSUM", data=data)))
-  exog = map(mods, ~station(.x$coefficients, y))
-  serial = map(mods, ~lapply(orders, function(i) lmtest::bgtest(.x, order=i, type="Chisq")))
-  hetero = map(mods, lmtest::bptest)
+  ramsey = purrr::map(mods, ~lmtest::resettest(.x, power=2, type="regressor", data=data))
+  efp = purrr::map(mods, ~strucchange::sctest(strucchange::efp(.x, type="OLS-CUSUM", data=data)))
+  exog = purrr::map(mods, ~station(.x$coefficients, y))
+  serial = purrr::map(mods, ~lapply(orders, function(i) lmtest::bgtest(.x, order=i, type="Chisq")))
+  hetero = purrr::map(mods, lmtest::bptest)
 
   # Print results
   rbind(
-    `Ramsey's RESET test` = paste(round(unlist(map(ramsey, "statistic")), 3),
-                                  map(map(ramsey, "p.value"), tsatools::psig)),
-    `CUSUM test` = paste(round(unlist(map(efp, "statistic")), 3),
-                         map(map(efp, "p.value"), tsatools::psig)),
+    `Ramsey's RESET test` = paste(round(unlist(purrr::map(ramsey, "statistic")), 3),
+                                  purrr::map(purrr::map(ramsey, "p.value"), tsatools::psig)),
+    `CUSUM test` = paste(round(unlist(purrr::map(efp, "statistic")), 3),
+                         purrr::map(purrr::map(efp, "p.value"), tsatools::psig)),
     `Stationary coefficients` = unlist(exog),
-    `Serial correlation present` = map(map(serial, map, "p.value"), ~any(.x<.05)),
+    `Serial correlation present` = purrr::map(purrr::map(serial, purrr::map, "p.value"), ~any(.x<.05)),
     `B-P test for heteroscedasticity` = paste(
-      round(unlist(map(hetero, "statistic")), 2),
-      map(map(hetero, "p.value"), tsatools::psig))
+      round(unlist(purrr::map(hetero, "statistic")), 2),
+      purrr::map(purrr::map(hetero, "p.value"), tsatools::psig))
   ) %>% as.data.frame() %>% rownames_to_column("Test")
 
 }

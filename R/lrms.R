@@ -69,7 +69,7 @@ lrms = function(mod, x, y, type=c("adl", "gecm"), vcov="const", digits=2, format
   }
 
   # Prepare output object
-  if (type=="adl") {out = map(x, lrm.adl)} else {out = map(x, lrm.gecm)}
+  if (type=="adl") {out = purrr::map(x, lrm.adl)} else {out = purrr::map(x, lrm.gecm)}
   names(out) = x
 
   # Display output
