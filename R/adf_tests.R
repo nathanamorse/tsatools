@@ -72,7 +72,7 @@ adf_tests <- function(x, pmax=NULL, lmtestorder=NULL, type = c("none", "constant
   AICresult <- purrr::map(my_lms, AIC)
 
   # Get number of lags in each test regression and make a list for use later
-  plags <- as.list(seq(purrr::pmax, 1, -1))
+  plags <- as.list(seq(pmax, 1, -1))
 
   # Pull out BIC from each regression
   BICresult <- purrr::map(my_lms, BIC)
