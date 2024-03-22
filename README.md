@@ -10,7 +10,7 @@ devtools::install_github("nathanamorse/tsatools")
 
 ## Usage
 
-See the [vignette](https://nmorse.com/code/tsatools/) for details on using this package. It includes the following functions:
+See the [vignette](https://nmorse.com/code/tsatools/) for details on using this package. The main functions are:
 
 - `adf_tests`: runs a series of augmented Dickey-Fuller tests with various lags (adapted from code from Suzanna Linn)
 - `bg_tests`: runs tests for serial correlation
